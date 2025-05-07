@@ -1,128 +1,4 @@
 #include <QTRSensors.h>
-
-// Define QTR-8A sensor
-QTRSensors qtr;
-const uint8_t SensorCount = 8;
-uint16_t sensorValues[SensorCount];
-
-// PID Constants (Fine-tune these if needed)
-#define KP 0.6  // Proportional Gain
-#define KD 2.0  // Derivative Gain
-
-int lastError = 0;
-
-// Motor driver pins (TB6612FNG)
-#define PWMA 3  // Right motor speed
-#define AIN1 4
-#define AIN2 5
-#define STBY 6
-#define BIN1 7
-#define BIN2 8
-#define PWMB 9  // Left motor speed
-
-void setup() {
-  Serial.begin(9600);
-
-  // Initialize QTR-8A sensor
-  qtr.setTypeAnalog();
-  qtr.setSensorPins((const uint8_t[]){A0, A1, A2, A3, A4, A5, A6, A7}, SensorCount);
-
-  // Set motor driver pins as OUTPUT
-  pinMode(AIN1, OUTPUT);
-  pinMode(AIN2, OUTPUT);
-  pinMode(BIN1, OUTPUT);
-  pinMode(BIN2, OUTPUT);
-  pinMode(PWMA, OUTPUT);
-  pinMode(PWMB, OUTPUT);
-  pinMode(STBY, OUTPUT);
-  
-  digitalWrite(STBY, HIGH); // Enable motor driver
-
-  // Auto-Calibration on Startup
-  Serial.println("Starting Auto-Calibration...");
-  calibrateSensors();
-}
-
-void calibrateSensors() {
-  Serial.println("Calibrating Sensors...");
-  delay(500);
-  
-  for (int i = 0; i < 100; i++) {  // Run 100 calibration cycles
-    qtr.calibrate();
-    Serial.print(".");
-    delay(20);
-  }
-  Serial.println("\nCalibration Complete!");
-}
-
-void loop() {
-  // Read sensor values
-  int position = qtr.readLineBlack(sensorValues);
-  int error = position - 3500; // 3500 is the center position
-  int motorSpeed = KP * error + KD * (error - lastError);
-  lastError = error;
-
-  int baseSpeed = 100; // Base speed of motors
-  int leftMotorSpeed = baseSpeed + motorSpeed;
-  int rightMotorSpeed = baseSpeed - motorSpeed;
-
-  // Limit motor speed
-  leftMotorSpeed = constrain(leftMotorSpeed, -255, 255);
-  rightMotorSpeed = constrain(rightMotorSpeed, -255, 255);
-
-  // Move motors based on PID output
-  moveMotor(leftMotorSpeed, rightMotorSpeed);
-}
-
-void moveMotor(int leftSpeed, int rightSpeed) {
-  // Right motor control
-  if (rightSpeed > 0) {
-    digitalWrite(AIN1, HIGH);
-    digitalWrite(AIN2, LOW);
-    analogWrite(PWMA, rightSpeed);
-  } else if (rightSpeed < 0) {
-    digitalWrite(AIN1, LOW);
-    digitalWrite(AIN2, HIGH);
-    analogWrite(PWMA, -rightSpeed);
-  } else {
-    digitalWrite(AIN1, LOW);
-    digitalWrite(AIN2, LOW);
-  }
-
-  // Left motor control
-  if (leftSpeed > 0) {
-    digitalWrite(BIN1, HIGH);
-    digitalWrite(BIN2, LOW);
-    analogWrite(PWMB, leftSpeed);
-  } else if (leftSpeed < 0) {
-    digitalWrite(BIN1, LOW);
-    digitalWrite(BIN2, HIGH);
-    analogWrite(PWMB, -leftSpeed);
-  } else {
-    digitalWrite(BIN1, LOW);
-    digitalWrite(BIN2, LOW);
-  }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#include <QTRSensors.h>
 #include <SparkFun_TB6612.h>
 
 #define AIN1 5
@@ -144,38 +20,38 @@ QTRSensors qtr;
 const uint8_t SensorCount = 8;
 uint16_t sensorValues[SensorCount];
 
-int max_speed = 220;  // ✅ Reduced from 255 for better control
-int turn_speed = 140; // ✅ Adjusted for smoother turns
-int min_speed = 50;   // ✅ Prevents stalling
+int max_speed = 220;  // Reduced from 255 for better control
+int turn_speed = 140; // Adjusted for smoother turns
+int min_speed = 50;   // Prevents stalling
 
 int L = 0, R = 0;
 int error = 0, adj = 0;
 
-float Kp = 0.078;  // ✅ Increased for sharper response
-float Ki = 0.006;  // ✅ Lowered to avoid excessive accumulation
-float Kd = 1.5;    // ✅ Increased to reduce oscillations
+float Kp = 0.078;  // Increased for sharper response
+float Ki = 0.006;  // Lowered to avoid excessive accumulation
+float Kd = 1.5;    // Increased to reduce oscillations
 
 int P, I, D;
 int lastError = 0;
 uint16_t position;
 
-// ✅ Stop Detection Variables
+// Stop Detection Variables
 unsigned long blackStartTime = 0;
-const unsigned long blackThreshold = 1500; // ✅ Stop after 1.5s on black
+const unsigned long blackThreshold = 1500; // Stop after 1.5s on black
 
 void setup() {
     Serial.begin(9600);
 
     brake();
     pinMode(STBY, OUTPUT);
-    digitalWrite(STBY, HIGH);  // ✅ Ensure motors are active
+    digitalWrite(STBY, HIGH);  // Ensure motors are active
 
     qtr.setTypeAnalog();
     qtr.setSensorPins((const uint8_t[]){ A0, A1, A2, A3, A4, A5, A6, A7 }, SensorCount);
     qtr.setEmitterPin(2);
 
     Serial.println("Calibrating...");
-    for (uint16_t i = 0; i < 150; i++) {  // ✅ Reduced calibration time
+    for (uint16_t i = 0; i < 150; i++) {  // Reduced calibration time
         qtr.calibrate();
         delay(10);
     }
@@ -187,7 +63,7 @@ void loop() {
     PID_control();
 }
 
-// ✅ PID CONTROL FUNCTION
+// PID CONTROL FUNCTION
 void PID_control() {
     position = qtr.readLineWhite(sensorValues);
     Serial.print("QTR Position: ");
@@ -195,10 +71,10 @@ void PID_control() {
 
     error = 3500 - position;
 
-    // ✅ Black Line (Finish Line) Detection
+    // Black Line (Finish Line) Detection
     bool allBlack = true;
     for (int i = 0; i < SensorCount; i++) {
-        if (sensorValues[i] < 900) {  // ✅ Adjust threshold if needed
+        if (sensorValues[i] < 900) {  // Adjust threshold if needed
             allBlack = false;
             break;
         }
@@ -210,23 +86,23 @@ void PID_control() {
         } else if (millis() - blackStartTime >= blackThreshold) {
             brake();
             Serial.println("🏁 Robot Stopped at Finish Line!");
-            while (true) delay(1000); // ✅ Prevents further execution
+            while (true) delay(1000); // Prevents further execution
         }
     } else {
-        blackStartTime = 0;  // ✅ Reset timer if not on finish line
+        blackStartTime = 0;  // Reset timer if not on finish line
     }
 
-    // ✅ Turning Adjustments
+    // Turning Adjustments
     if (error > 2000) {  
         L = turn_speed;
-        R = min_speed;  // ✅ Reduce speed for sharp left
+        R = min_speed;  // Reduce speed for sharp left
     } else if (error < -2000) {  
         L = min_speed;  
-        R = turn_speed;  // ✅ Reduce speed for sharp right
-    } else {  // ✅ Normal PID control
+        R = turn_speed;  // Reduce speed for sharp right
+    } else {  // Normal PID control
         P = error;
         I += error;
-        I = constrain(I, -300, 300);  // ✅ Integral windup protection
+        I = constrain(I, -300, 300);  // Integral windup protection
         D = error - lastError;
         lastError = error;
 
@@ -242,7 +118,7 @@ void PID_control() {
     forward(L, R);
 }
 
-// ✅ ROBOT MOVEMENT FUNCTIONS
+// ROBOT MOVEMENT FUNCTIONS
 void forward(int L, int R) {
     digitalWrite(STBY, HIGH);
     motor1.drive(L);
